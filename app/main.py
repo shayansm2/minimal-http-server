@@ -9,7 +9,7 @@ def main():
     if target == "/":
         conn.sendall(b'HTTP/1.1 200 OK\r\n\r\n')
     else:
-        conn.sendall(b'HTTP/1.1 404 404 Not Found\r\n\r\n')
+        conn.sendall(b'HTTP/1.1 404 Not Found\r\n\r\n')
     conn.close()
 
 
