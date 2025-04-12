@@ -52,7 +52,11 @@ def create_request(recv: str) -> Request:
     [sections, body] = recv.split("\\r\\n\\r\\n")
     line, *raw_headers = sections.split("\\r\\n")
     [method, target, version] = line.split(" ")
-    headers = {raw_header.split(":")[0]:raw_header.split(":")[1] for raw_header in raw_headers}
+    headers = {
+        key.strip(): value.strip() 
+        for header in raw_headers 
+        for key, value in [header.split(":", 1)]
+    }    
     return Request(
         method=method,
         target_path=target,
