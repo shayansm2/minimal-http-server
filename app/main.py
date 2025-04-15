@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+import os
 import socket
-import threading  # noqa: F401
+import sys
+import threading
 
 reason_phrases = {200: "OK", 404: "Not Found"}
 
@@ -19,6 +21,19 @@ class Request:
 class Response:
     message: str
     code: int = 200
+    _content_type = "text/plain"
+
+    @property
+    def content_length(self):
+        return len(self.message)
+
+    @property
+    def content_type(self):
+        return self._content_type
+
+    def with_content_type(self, content_type: str):
+        self._content_type = content_type
+        return self
 
 
 class HttpServerException(Exception):
@@ -28,12 +43,17 @@ class HttpServerException(Exception):
         super().__init__(code, message)
 
 
+class NotFoundException(HttpServerException):
+    def __init__(self):
+        super().__init__(404, "")
+
+
 def index_action(request: Request) -> Response:
     return Response(message="")
 
 
 def not_found_action(request: Request) -> Response:
-    raise HttpServerException(404, "Not Found")
+    raise NotFoundException()
 
 
 def echo_action(request: Request) -> Response:
@@ -44,9 +64,24 @@ def user_agent_action(request: Request) -> Response:
     return Response(message=request.get_header("User-Agent", ""))
 
 
+def files_action(request: Request) -> Response:
+    file_name = request.target_path.replace("/files/", "")
+    global directory
+    file_path = f"{directory}{file_name}"
+    if not os.path.isfile(file_path):
+        raise NotFoundException()
+    with open(file_path, "r") as f:
+        message = f.read()
+    return Response(message=message).with_content_type("application/octet-stream")
+
+
+# todo 1. pattern matching
+# todo 2. decorator
 def find_controller(target_path: str):
     if target_path.startswith("/echo/"):
         return echo_action
+    if target_path.startswith("/files/"):
+        return files_action
     if target_path == "/user-agent":
         return user_agent_action
     if target_path == "/":
@@ -66,6 +101,17 @@ def create_request(recv: str) -> Request:
     return Request(method=method, target_path=target, headers=headers)
 
 
+def make_response(response: Response) -> str:
+    res = [
+        f"HTTP/1.1 {response.code} {reason_phrases.get(response.code, '')}",
+        f"Content-Type: {response.content_type}",
+    ]
+    if response.message:
+        res.append(f"Content-Length: {response.content_length}")
+        res.append(f"\r\n{response.message}")
+    return "\r\n".join(res)
+
+
 def handle(connection):
     request = create_request(str(connection.recv(1024)))
     try:
@@ -73,18 +119,20 @@ def handle(connection):
         response = controller(request)
     except HttpServerException as e:
         response = Response(message=e.message, code=e.code)
-
-    res = (
-        f"HTTP/1.1 {response.code} {reason_phrases.get(response.code, '')}\r\n"
-        f"Content-Type: text/plain\r\n"
-        f"Content-Length: {len(response.message)}"
-        f"\r\n\r\n{response.message}"
-    )
-    connection.sendall(res.encode("utf-8"))
+    connection.sendall(make_response(response).encode("utf-8"))
     connection.close()
 
 
+# global variables
+directory: str = ""
+
+
 def main():
+    if "--directory" in sys.argv:
+        global directory
+        i = sys.argv.index("--directory")
+        directory = sys.argv[i + 1]
+
     server_socket = socket.create_server(("localhost", 4221), reuse_port=True)
     while True:
         conn, _ = server_socket.accept()
