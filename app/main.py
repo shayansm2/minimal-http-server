@@ -102,14 +102,14 @@ def create_request(recv: str) -> Request:
 
 
 def make_response(response: Response) -> str:
-    res = [
-        f"HTTP/1.1 {response.code} {reason_phrases.get(response.code, '')}",
-    ]
+    status_line = f"HTTP/1.1 {response.code} {reason_phrases.get(response.code, '')}"
+    headers = []
     if response.message:
-        res.append(f"Content-Type: {response.content_type}")
-        res.append(f"Content-Length: {response.content_length}")
-        res.append(f"\r\n{response.message}")
-    return "\r\n".join(res)
+        headers.append(f"Content-Type: {response.content_type}")
+        headers.append(f"Content-Length: {response.content_length}")
+
+    body = f"\r\n{response.message}" if response.message else ""
+    return "\r\n".join([status_line, "\r\n".join(headers), body])
 
 
 def handle(connection):
