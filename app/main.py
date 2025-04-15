@@ -104,9 +104,9 @@ def create_request(recv: str) -> Request:
 def make_response(response: Response) -> str:
     res = [
         f"HTTP/1.1 {response.code} {reason_phrases.get(response.code, '')}",
-        f"Content-Type: {response.content_type}",
     ]
     if response.message:
+        res.append(f"Content-Type: {response.content_type}")
         res.append(f"Content-Length: {response.content_length}")
         res.append(f"\r\n{response.message}")
     return "\r\n".join(res)
